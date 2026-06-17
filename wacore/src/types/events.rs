@@ -264,6 +264,9 @@ pub enum EventKind {
     PairPasskeyRequest,
     PairPasskeyConfirmation,
     PairPasskeyError,
+    /// PATCH LOCAL (fork): kind do Event::ServerAck. Adicionado no FIM pra não
+    /// deslocar os discriminantes existentes (bit index do EventInterest).
+    ServerAck,
     // When adding a variant, mind the 64-kind ceiling below (EventInterest packs
     // each discriminant as a bit in a u64) and keep the guard pointing at the
     // last variant.
@@ -277,7 +280,7 @@ impl EventKind {
 
 // Build-time tripwire: a new variant that would overflow EventInterest's bitmask
 // fails compilation instead of silently corrupting the mask at runtime.
-const _: () = assert!((EventKind::PairPasskeyError as u8) < EventKind::CAPACITY);
+const _: () = assert!((EventKind::ServerAck as u8) < EventKind::CAPACITY);
 
 /// A set of [`EventKind`]s a handler wants delivered. The event bus skips
 /// materializing and dispatching events whose kind no handler wants, so a
@@ -626,6 +629,12 @@ pub enum Event {
 
     Message(Arc<wa::Message>, Arc<MessageInfo>),
     Receipt(Receipt),
+    /// Server `<ack>` para uma mensagem NOSSA enviada (`id` = message id do
+    /// envio). PATCH LOCAL (fork): observe-only, emitido em ADIÇÃO à resolução
+    /// do waiter interno, pra medir o tempo recebido->aceite-do-servidor
+    /// (server_ack). O #604 privatizou o ack-waiter sem hook público; este
+    /// evento reexpõe só a observabilidade do ack, sem tocar na lógica de envio.
+    ServerAck { id: String },
     UndecryptableMessage(UndecryptableMessage),
     #[serde(skip)]
     Notification(Arc<OwnedNodeRef>),
@@ -817,6 +826,7 @@ impl Event {
             Event::PairPasskeyRequest(_) => EventKind::PairPasskeyRequest,
             Event::PairPasskeyConfirmation(_) => EventKind::PairPasskeyConfirmation,
             Event::PairPasskeyError(_) => EventKind::PairPasskeyError,
+            Event::ServerAck { .. } => EventKind::ServerAck,
         }
     }
 
