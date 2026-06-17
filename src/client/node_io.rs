@@ -958,6 +958,16 @@ impl Client {
             }
         }
 
+        // PATCH LOCAL (fork): observabilidade do server_ack (#604 privatizou o
+        // waiter). Emite Event::ServerAck pra TODO ack com id, ANTES e
+        // independente da resolução do waiter — observe-only, não altera o
+        // fluxo de envio/phash. Consumidor (nosso bot) mede recebido->ack.
+        if let Some(ack_id) = node.get_attr("id").map(|v| v.as_str().to_string()) {
+            self.core
+                .event_bus
+                .dispatch(wacore::types::events::Event::ServerAck { id: ack_id });
+        }
+
         if let Some(id) = node.get_attr("id").map(|v| v.as_str())
             && let Some(waiter) = self.response_waiters.lock().await.remove(id.as_ref())
         {
